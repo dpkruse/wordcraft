@@ -4,6 +4,8 @@ name: Test Windows build (print diagnostics)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [test/print-diag-0.19.1]
 
 permissions:
   contents: read
