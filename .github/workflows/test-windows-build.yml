@@ -1,0 +1,57 @@
+# Test build only (27 Nov 2026): WordCraft 0.19.1 for Windows with the print diagnostics in
+# dpkruse/winprint.rs (Cargo.toml [patch]). Unsigned, portable, never released.
+name: Test Windows build (print diagnostics)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Portable ZIP (x86_64, unsigned)
+    runs-on: windows-latest
+    timeout-minutes: 150
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check out craft-fonts
+        uses: storytold/craft-common-actions/actions/checkout-craft-fonts@f5141455aac7b2eb4708aa259d8ffcdf10fde939
+        with:
+          ref: b076417b5880bd4154bd22f00695b1d28c6bea83
+      - uses: storytold/craft-common-actions/actions/checkout-craft-i18n@f5141455aac7b2eb4708aa259d8ffcdf10fde939
+      - uses: step-security/dtolnay-rust-toolchain@8dd607977d06adf4ed49b190381e74c17a9dd25f # v1.0.0
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
+      - name: Build
+        run: |
+          $env:CRAFT_FONTS_DIR = "$env:GITHUB_WORKSPACE\craft-fonts"
+          $env:CRAFT_FONTS_REQUIRED = '1'
+          cargo build --release --locked -p wordcraft -p wordcraft-cli --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Stage
+        run: |
+          $out = "$env:RUNNER_TEMP\wordcraft-0.19.1-print-diag"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $bin = "target\x86_64-pc-windows-msvc\release"
+          Copy-Item "$bin\wordcraft.exe", "$bin\wordcraft-cli.exe", NOTICE, ATTRIBUTION.md, LICENSE-MIT, LICENSE-APACHE $out
+          foreach ($ofl in Get-ChildItem -Path 'craft-fonts\fonts\*\OFL.txt' -File -ErrorAction SilentlyContinue) {
+            Copy-Item $ofl.FullName (Join-Path $out "OFL-$($ofl.Directory.Name).txt")
+          }
+          & "$out\wordcraft-cli.exe" --version
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wordcraft-0.19.1-print-diag-windows-x64
+          path: ${{ runner.temp }}/wordcraft-0.19.1-print-diag
+          if-no-files-found: error
+          retention-days: 14
